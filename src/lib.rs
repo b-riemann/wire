@@ -4,15 +4,6 @@ use std::fs::File;
 use std::os::unix::prelude::FileExt;
 use std::str;
 
-#[pyfunction]
-fn astring(a: u64) -> PyResult<String> {
-    let file = File::open("demo.txt")?;
-    let mut buf = [0u8; 8];
-    file.read_at(&mut buf, a)?;
-    let ostr = str::from_utf8(&buf)?;
-    return Ok(ostr.to_string())
-}
-
 #[pyclass]
 struct FunPyre {
     file : File,
@@ -27,10 +18,17 @@ impl FunPyre {
             file,
         }
     }
+
+    fn astring(self_: PyRef<'_, Self>, a: u64) -> PyResult<String> {
+        let mut buf = [0u8; 8];
+        self_.file.read_at(&mut buf, a)?;
+        let ostr = str::from_utf8(&buf)?;
+        return Ok(ostr.to_string())
+    }
 }
 
 #[pymodule]
 fn pyre(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(astring, m)?)?;
+    m.add_class::<FunPyre>()?;
     Ok(())
 }
