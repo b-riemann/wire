@@ -19,9 +19,9 @@ impl FunPyre {
         }
     }
 
-    fn astring(self_: PyRef<'_, Self>, a: u64) -> PyResult<String> {
-        let mut buf = [0u8; 8];
-        self_.file.read_at(&mut buf, a)?;
+    fn from_index(self_: PyRef<'_, Self>, start_index: u64, n_bytes: usize) -> PyResult<String> {
+        let mut buf = vec![0; n_bytes];
+        self_.file.read_exact_at(&mut buf, start_index)?;
         let ostr = str::from_utf8(&buf)?;
         return Ok(ostr.to_string())
     }
