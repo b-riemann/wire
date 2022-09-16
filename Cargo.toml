@@ -1,0 +1,12 @@
+[package]
+name = "wire"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pyre"
+crate-type = ["cdylib"]
+
+[dependencies.pyo3]
+version = "0.17.1"
+features = ["extension-module"]

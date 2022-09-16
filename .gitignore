@@ -1,0 +1,5 @@
+/target
+/.ipynb_checkpoints
+*.ipynb
+*.txt
+*.so
