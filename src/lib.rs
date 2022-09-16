@@ -11,14 +11,19 @@ struct FunPyre {
     file : File,
 }
 
-fn scan(segment: Vec<u8>) -> u8 {
-    let mut n = 0;
+fn scan(segment: Vec<u8>) -> bool {
+    //checks if standard english sentence
     for be in segment {
-        if be > 60 {
-            n += 1
+        match be {
+          0x41..=0x5a => continue, //uppercase
+          0x61..=0x7a => continue, //lowercase
+          b'.' => continue,
+          b',' => continue,
+          b' ' => continue,
+          _ => return false
         }
     }
-    n
+    true
 }
 
 impl FunPyre {
@@ -31,19 +36,19 @@ impl FunPyre {
         }
     }
 
-    fn bscan(&mut self, iterations: usize) -> Result<u8, &str> {
-        let buf_reader = BufReader::new(&mut self.file);
-        let mut x;
-        for (n, segmentread) in buf_reader.split(b' ').enumerate() {
+    fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
+        let buf_reader = BufReader::new(&self.file);
+        let mut x = Vec::with_capacity(iterations);
+        for (n, segmentread) in buf_reader.split(split_at).enumerate() {
+	    if n>=iterations {
+                break;
+            }
             match segmentread {
-                Ok(segment) => x = scan(segment),
+                Ok(segment) => x.push( scan(segment) ),
                 Err(_) => return Err("bla")
             }
-            if n>iterations {
-                return Ok(x)
-            }
         }
-        Ok(42)
+        Ok(x)
     }
 }
 
@@ -61,13 +66,9 @@ impl FunPyre {
         Ok(self_.rfrom_index(start_index, n_bytes).unwrap())
     }
 
-    fn scan(mut self_: PyRefMut<'_, Self>, iterations: usize) -> PyResult<[u8;2]> {
-        let x = self_.bscan(iterations).unwrap();
-
-        // plan is to also return flags if is english sentence etc.
-        let mut arr = [0;2];
-        arr[1] = x;
-        return Ok(arr)
+    fn scan(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<bool>> {
+        let x = self_.bscan(b'.', iterations).unwrap();
+        Ok(x)
     }
 
 }
