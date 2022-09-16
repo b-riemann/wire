@@ -36,7 +36,8 @@ impl FunPyre {
         }
     }
 
-    fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
+    fn bscan(&mut self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
+        self.file.rewind().unwrap();
         let buf_reader = BufReader::new(&self.file);
         let mut x = Vec::with_capacity(iterations);
         for (n, segmentread) in buf_reader.split(split_at).enumerate() {
@@ -66,7 +67,7 @@ impl FunPyre {
         Ok(self_.rfrom_index(start_index, n_bytes).unwrap())
     }
 
-    fn scan(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<bool>> {
+    fn scan(mut self_: PyRefMut<'_, Self>, iterations: usize) -> PyResult<Vec<bool>> {
         let x = self_.bscan(b'.', iterations).unwrap();
         Ok(x)
     }
