@@ -8,11 +8,26 @@ use std::io::SeekFrom;
 use std::str;
 
 #[pyclass]
-struct FunPyre {
-    file : File,
+#[derive(Debug)]
+enum SegmentKind {
+    GeneralSegment,
+    AsciiSentence,
 }
 
-fn scan(segment: Vec<u8>) -> bool {
+#[pyclass]
+struct Segment {
+    start: u64,
+    end: u64,
+    kind: SegmentKind
+}
+
+impl Segment {
+    fn __str__(&self) -> PyResult<String> {
+        Ok(String::from(format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)))
+    }
+}
+
+fn scan(segment: &Vec<u8>) -> SegmentKind {
     //single-character based classification of segments.
     // i.e. checks if standard english sentence
     for be in segment {
@@ -22,10 +37,15 @@ fn scan(segment: Vec<u8>) -> bool {
           b'.' => continue,
           b',' => continue,
           b' ' => continue,
-          _ => return false
+          _ => return SegmentKind::GeneralSegment
         }
     }
-    true
+    return SegmentKind::AsciiSentence
+}
+
+#[pyclass]
+struct FunPyre {
+    file : File,
 }
 
 impl FunPyre {
@@ -38,27 +58,33 @@ impl FunPyre {
         }
     }
 
-    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<u64>, &str> {
+    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<Segment>, &str> {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
-        let mut x = Vec::with_capacity(iterations);
-        x.push(0);
+        let mut idx = 0;
         let mut tmp = Vec::with_capacity(256);
+        let mut out = Vec::with_capacity(iterations);
 
 	for n in 1..iterations {
             buf_reader.read_until(split_at, &mut tmp).unwrap();
+            let x = Segment {
+                start: idx,
+                end: buf_reader.stream_position().unwrap(),
+                kind: scan(&tmp)
+            };
+            idx = x.end;
+            out.push(x);
             // possibly classsify tmp string here..
             tmp.clear(); // as read_until only appends
             if n>=iterations {
                 break;
             }
-            x.push( buf_reader.stream_position().unwrap() )
         }
-        Ok(x)
+        Ok(out)
     }
 
-    fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
+    fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<SegmentKind>, &str> {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         let mut x = Vec::with_capacity(iterations);
@@ -67,7 +93,7 @@ impl FunPyre {
                 break;
             }
             match segmentread {
-                Ok(segment) => x.push( scan(segment) ),
+                Ok(segment) => x.push( scan(&segment) ),
                 Err(_) => return Err("bla")
             }
         }
@@ -89,12 +115,12 @@ impl FunPyre {
         Ok(self_.rfrom_index(start_index, n_bytes).unwrap())
     }
 
-    fn scan(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<bool>> {
+    fn scan(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<SegmentKind>> {
         let x = self_.bscan(b'.', iterations).unwrap();
         Ok(x)
     }
 
-    fn sentencer(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<u64>> {
+    fn sentencer(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
         Ok( self_.ascan(b'.', iterations).unwrap() )
     }
 }
