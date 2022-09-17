@@ -38,6 +38,26 @@ impl FunPyre {
         }
     }
 
+    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<u64>, &str> {
+        let mut buf_reader = BufReader::new(&self.file);
+        buf_reader.seek(SeekFrom::Start(0)).unwrap();
+        
+        let mut x = Vec::with_capacity(iterations);
+        x.push(0);
+        let mut tmp = Vec::with_capacity(256);
+
+	for n in 1..iterations {
+            buf_reader.read_until(split_at, &mut tmp).unwrap();
+            // possibly classsify tmp string here..
+            tmp.clear(); // as read_until only appends
+            if n>=iterations {
+                break;
+            }
+            x.push( buf_reader.stream_position().unwrap() )
+        }
+        Ok(x)
+    }
+
     fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
@@ -74,6 +94,9 @@ impl FunPyre {
         Ok(x)
     }
 
+    fn sentencer(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<u64>> {
+        Ok( self_.ascan(b'.', iterations).unwrap() )
+    }
 }
 
 #[pymodule]
