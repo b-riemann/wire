@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::os::unix::prelude::FileExt;
 use std::io::BufReader;
+use std::io::SeekFrom;
 use std::str;
 
 #[pyclass]
@@ -12,7 +13,8 @@ struct FunPyre {
 }
 
 fn scan(segment: Vec<u8>) -> bool {
-    //checks if standard english sentence
+    //single-character based classification of segments.
+    // i.e. checks if standard english sentence
     for be in segment {
         match be {
           0x41..=0x5a => continue, //uppercase
@@ -36,9 +38,9 @@ impl FunPyre {
         }
     }
 
-    fn bscan(&mut self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
-        self.file.rewind().unwrap();
-        let buf_reader = BufReader::new(&self.file);
+    fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<bool>, &str> {
+        let mut buf_reader = BufReader::new(&self.file);
+        buf_reader.seek(SeekFrom::Start(0)).unwrap();
         let mut x = Vec::with_capacity(iterations);
         for (n, segmentread) in buf_reader.split(split_at).enumerate() {
 	    if n>=iterations {
@@ -67,7 +69,7 @@ impl FunPyre {
         Ok(self_.rfrom_index(start_index, n_bytes).unwrap())
     }
 
-    fn scan(mut self_: PyRefMut<'_, Self>, iterations: usize) -> PyResult<Vec<bool>> {
+    fn scan(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<bool>> {
         let x = self_.bscan(b'.', iterations).unwrap();
         Ok(x)
     }

@@ -1,1 +1,1 @@
-This is a demo text that has more than one sentence. The first sentence was a standard ascii alphabetic sentence, while this one has 1 digit in it. This one here is standard ascii alphabetic again.
+This is a demo text that has more than one sentence. The first sentence was a standard ascii alphabetic sentence, while this one has 1 digit in it. This one here is standard ascii alphabetic again. this sentence has a Name in it and start with a lowercase character. Here we have a [[link|link_to_somewhere]] to somewhere. And some {{macro}} stuff and <xml> tags.
