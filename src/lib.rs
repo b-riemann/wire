@@ -8,22 +8,26 @@ use std::io::SeekFrom;
 use std::str;
 
 #[pyclass]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum SegmentKind {
     GeneralSegment,
     AsciiSentence,
 }
 
 #[pyclass]
-struct Segment {
+struct Seqment {
+    #[pyo3(get)]
     start: u64,
+    #[pyo3(get)]
     end: u64,
+    #[pyo3(get)]
     kind: SegmentKind
 }
 
-impl Segment {
-    fn __str__(&self) -> PyResult<String> {
-        Ok(String::from(format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)))
+#[pymethods]
+impl Seqment {
+    fn __repr__(&self) -> &'static str {
+        "abc" //format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)
     }
 }
 
@@ -58,7 +62,7 @@ impl FunPyre {
         }
     }
 
-    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<Segment>, &str> {
+    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<Seqment>, &str> {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
@@ -66,9 +70,9 @@ impl FunPyre {
         let mut tmp = Vec::with_capacity(256);
         let mut out = Vec::with_capacity(iterations);
 
-	for n in 1..iterations {
+        for n in 1..iterations {
             buf_reader.read_until(split_at, &mut tmp).unwrap();
-            let x = Segment {
+            let x = Seqment {
                 start: idx,
                 end: buf_reader.stream_position().unwrap(),
                 kind: scan(&tmp)
@@ -120,7 +124,7 @@ impl FunPyre {
         Ok(x)
     }
 
-    fn sentencer(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
+    fn sentencer(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Seqment>> {
         Ok( self_.ascan(b'.', iterations).unwrap() )
     }
 }
