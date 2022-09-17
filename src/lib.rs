@@ -15,7 +15,7 @@ enum SegmentKind {
 }
 
 #[pyclass]
-struct Seqment {
+struct Segment {
     #[pyo3(get)]
     start: u64,
     #[pyo3(get)]
@@ -25,7 +25,7 @@ struct Seqment {
 }
 
 #[pymethods]
-impl Seqment {
+impl Segment {
     fn __repr__(&self) -> String {
         format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)
     }
@@ -62,7 +62,12 @@ impl FunPyre {
         }
     }
 
-    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<Seqment>, &str> {
+    fn rfrom_segment(&self, seg: &Segment) -> Result<String, &str> {
+        let n_bytes = (seg.end - seg.start) as usize;
+        self.rfrom_index(seg.start, n_bytes)
+    }
+
+    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<Segment>, &str> {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
@@ -72,36 +77,19 @@ impl FunPyre {
 
         for n in 1..iterations {
             buf_reader.read_until(split_at, &mut tmp).unwrap();
-            let x = Seqment {
+            let x = Segment {
                 start: idx,
                 end: buf_reader.stream_position().unwrap(),
                 kind: scan(&tmp)
             };
+            tmp.clear(); // as read_until only appends
             idx = x.end;
             out.push(x);
-            // possibly classsify tmp string here..
-            tmp.clear(); // as read_until only appends
             if n>=iterations {
                 break;
             }
         }
         Ok(out)
-    }
-
-    fn bscan(&self, split_at: u8, iterations: usize) -> Result<Vec<SegmentKind>, &str> {
-        let mut buf_reader = BufReader::new(&self.file);
-        buf_reader.seek(SeekFrom::Start(0)).unwrap();
-        let mut x = Vec::with_capacity(iterations);
-        for (n, segmentread) in buf_reader.split(split_at).enumerate() {
-	    if n>=iterations {
-                break;
-            }
-            match segmentread {
-                Ok(segment) => x.push( scan(&segment) ),
-                Err(_) => return Err("bla")
-            }
-        }
-        Ok(x)
     }
 }
 
@@ -115,16 +103,11 @@ impl FunPyre {
         }
     }
 
-    fn from_index(self_: PyRef<'_, Self>, start_index: u64, n_bytes: usize) -> PyResult<String> {
-        Ok(self_.rfrom_index(start_index, n_bytes).unwrap())
+    fn from_segment(self_: PyRef<'_, Self>, segment: &Segment) -> PyResult<String> {
+        Ok(self_.rfrom_segment(segment).unwrap())
     }
 
-    fn scan(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<SegmentKind>> {
-        let x = self_.bscan(b'.', iterations).unwrap();
-        Ok(x)
-    }
-
-    fn sentencer(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Seqment>> {
+    fn scanner(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
         Ok( self_.ascan(b'.', iterations).unwrap() )
     }
 }
