@@ -67,7 +67,7 @@ impl FunPyre {
         self.rfrom_index(seg.start, n_bytes)
     }
 
-    fn ascan(&self, split_at: u8, iterations: usize) -> Result<Vec<Segment>, &str> {
+    fn ascan(&self, split_at: &Vec<u8>, iterations: usize) -> Result<Vec<Segment>, &str> {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
@@ -75,8 +75,22 @@ impl FunPyre {
         let mut tmp = Vec::with_capacity(256);
         let mut out = Vec::with_capacity(iterations);
 
-        for n in 1..iterations {
-            buf_reader.read_until(split_at, &mut tmp).unwrap();
+        let split = split_at.last().unwrap().clone();
+        let splen = split_at.len();
+
+        'iters: for _ in 0..iterations {
+            buf_reader.read_until(split, &mut tmp).unwrap();
+
+            let tmplen = tmp.len();
+            if tmplen < splen {
+                continue;
+            }
+            for m in 0..splen {
+                if tmp[tmplen-splen+m] != split_at[m] {
+                    continue 'iters;
+                }
+            }
+
             let x = Segment {
                 start: idx,
                 end: buf_reader.stream_position().unwrap(),
@@ -85,9 +99,6 @@ impl FunPyre {
             tmp.clear(); // as read_until only appends
             idx = x.end;
             out.push(x);
-            if n>=iterations {
-                break;
-            }
         }
         Ok(out)
     }
@@ -108,7 +119,7 @@ impl FunPyre {
     }
 
     fn scanner(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
-        Ok( self_.ascan(b'.', iterations).unwrap() )
+        Ok( self_.ascan(&b".".to_vec(), iterations).unwrap() )
     }
 }
 
