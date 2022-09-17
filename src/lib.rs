@@ -26,8 +26,8 @@ struct Seqment {
 
 #[pymethods]
 impl Seqment {
-    fn __repr__(&self) -> &'static str {
-        "abc" //format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)
+    fn __repr__(&self) -> String {
+        format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)
     }
 }
 
