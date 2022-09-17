@@ -78,16 +78,14 @@ impl FunPyre {
         let split = split_at.last().unwrap().clone();
         let splen = split_at.len();
 
-        'iters: for _ in 0..iterations {
-            buf_reader.read_until(split, &mut tmp).unwrap();
-
-            let tmplen = tmp.len();
+        'iters: loop {
+            let tmplen = buf_reader.read_until(split, &mut tmp).unwrap();
             if tmplen < splen {
-                continue;
+                continue
             }
             for m in 0..splen {
                 if tmp[tmplen-splen+m] != split_at[m] {
-                    continue 'iters;
+                    continue 'iters
                 }
             }
 
@@ -96,11 +94,13 @@ impl FunPyre {
                 end: buf_reader.stream_position().unwrap(),
                 kind: scan(&tmp)
             };
-            tmp.clear(); // as read_until only appends
             idx = x.end;
             out.push(x);
+            if out.len() == iterations {
+                return Ok(out)
+            }
+            tmp.clear(); // as read_until only appends
         }
-        Ok(out)
     }
 }
 
