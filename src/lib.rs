@@ -10,8 +10,9 @@ use std::str;
 #[pyclass]
 #[derive(Debug, Clone)]
 enum SegmentKind {
-    GeneralSegment,
+    Unknown,
     AsciiSentence,
+    Page
 }
 
 #[pyclass]
@@ -41,11 +42,32 @@ fn sentence_classifier(segment: &Vec<u8>) -> SegmentKind {
           b'.' => continue,
           b',' => continue,
           b' ' => continue,
-          _ => return SegmentKind::GeneralSegment
+          _ => return SegmentKind::Unknown
         }
     }
     return SegmentKind::AsciiSentence
 }
+
+fn startswith(segment: &Vec<u8>, start: &Vec<u8>) -> bool {
+    if segment.len() < start.len() {
+        return false
+    }
+    for n in 0..start.len() {
+        if start[n] != segment[n] {
+            return false
+        }
+    }
+    return true
+}
+
+fn page_classifier(segment: &Vec<u8>) -> SegmentKind {
+    if startswith(segment, &b"<page".to_vec()) {
+        return SegmentKind::Page
+    } else {
+        return SegmentKind::Unknown
+    }
+}
+
 
 #[pyclass]
 struct FunPyre {
@@ -67,33 +89,42 @@ impl FunPyre {
         self.rfrom_index(seg.start, n_bytes)
     }
 
-    fn ascan<F>(&self, split_at: &Vec<u8>, scanner: F, iterations: usize) -> Result<Vec<Segment>, &str>
+    fn ascan<F>(&self, split_at: &Vec<u8>, scanner: F, split_left: bool, iterations: usize) -> Result<Vec<Segment>, &str>
         where F: Fn(&Vec<u8>) -> SegmentKind
     {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
         let mut idx = 0;
-        let mut tmp = Vec::with_capacity(256);
+        let mut tmp = Vec::with_capacity(512);
         let mut out = Vec::with_capacity(iterations);
 
         let split = split_at.last().unwrap().clone();
         let splen = split_at.len();
 
         'iters: loop {
-            let tmplen = buf_reader.read_until(split, &mut tmp).unwrap();
-            if tmplen < splen {
+            let readlen = buf_reader.read_until(split, &mut tmp).unwrap();
+            if readlen == 0 {
+                return Ok(out)
+            }
+            if readlen < splen {
                 continue
             }
-            for m in 0..splen {
-                if tmp[tmplen-splen+m] != split_at[m] {
+
+            let trunclen = tmp.len() - splen;
+            for m in 0..splen-1 {
+                if tmp[trunclen+m] != split_at[m] {
                     continue 'iters
                 }
             }
 
+            if split_left {
+                tmp.truncate(trunclen);
+            }
+
             let x = Segment {
                 start: idx,
-                end: buf_reader.stream_position().unwrap(),
+                end: buf_reader.stream_position().unwrap() - match split_left { true => splen as u64, false => 0 },
                 kind: scanner(&tmp)
             };
             idx = x.end;
@@ -101,7 +132,12 @@ impl FunPyre {
             if out.len() == iterations {
                 return Ok(out)
             }
-            tmp.clear(); // as read_until only appends
+
+            if split_left {
+                tmp = split_at.clone();
+            } else {
+                tmp.clear(); // as read_until only appends
+            }
         }
     }
 }
@@ -121,8 +157,13 @@ impl FunPyre {
     }
 
     fn find_sentences(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
-        Ok( self_.ascan(&b".".to_vec(), sentence_classifier, iterations).unwrap() )
+        Ok( self_.ascan(&b".".to_vec(), sentence_classifier, false, iterations).unwrap() )
     }
+
+    fn find_pages(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
+        Ok( self_.ascan(&b"<page".to_vec(), page_classifier, true, iterations).unwrap() )
+    }
+
 }
 
 #[pymodule]
