@@ -31,7 +31,7 @@ impl Segment {
     }
 }
 
-fn scan(segment: &Vec<u8>) -> SegmentKind {
+fn sentence_classifier(segment: &Vec<u8>) -> SegmentKind {
     //single-character based classification of segments.
     // i.e. checks if standard english sentence
     for be in segment {
@@ -67,7 +67,9 @@ impl FunPyre {
         self.rfrom_index(seg.start, n_bytes)
     }
 
-    fn ascan(&self, split_at: &Vec<u8>, iterations: usize) -> Result<Vec<Segment>, &str> {
+    fn ascan<F>(&self, split_at: &Vec<u8>, scanner: F, iterations: usize) -> Result<Vec<Segment>, &str>
+        where F: Fn(&Vec<u8>) -> SegmentKind
+    {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
@@ -92,7 +94,7 @@ impl FunPyre {
             let x = Segment {
                 start: idx,
                 end: buf_reader.stream_position().unwrap(),
-                kind: scan(&tmp)
+                kind: scanner(&tmp)
             };
             idx = x.end;
             out.push(x);
@@ -118,8 +120,8 @@ impl FunPyre {
         Ok(self_.rfrom_segment(segment).unwrap())
     }
 
-    fn scanner(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
-        Ok( self_.ascan(&b".".to_vec(), iterations).unwrap() )
+    fn find_sentences(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
+        Ok( self_.ascan(&b".".to_vec(), sentence_classifier, iterations).unwrap() )
     }
 }
 
