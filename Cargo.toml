@@ -7,6 +7,9 @@ edition = "2021"
 name = "pyre"
 crate-type = ["cdylib"]
 
+[dependencies]
+regex = "1"
+
 [dependencies.pyo3]
 version = "0.17.1"
 features = ["extension-module"]

@@ -7,6 +7,8 @@ use std::io::BufReader;
 use std::io::SeekFrom;
 use std::str;
 
+use regex::bytes::Regex;
+
 #[pyclass]
 #[derive(Debug, Clone)]
 enum SegmentKind {
@@ -48,20 +50,11 @@ fn sentence_classifier(segment: &Vec<u8>) -> SegmentKind {
     return SegmentKind::AsciiSentence
 }
 
-fn startswith(segment: &Vec<u8>, start: &Vec<u8>) -> bool {
-    if segment.len() < start.len() {
-        return false
-    }
-    for n in 0..start.len() {
-        if start[n] != segment[n] {
-            return false
-        }
-    }
-    return true
-}
 
 fn page_classifier(segment: &Vec<u8>) -> SegmentKind {
-    if startswith(segment, &b"<page".to_vec()) {
+    let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>[\s\S]+$").unwrap();
+    
+    if re.is_match(segment) {
         return SegmentKind::Page
     } else {
         return SegmentKind::Unknown
