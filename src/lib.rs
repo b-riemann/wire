@@ -10,31 +10,21 @@ use std::str;
 use regex::bytes::Regex;
 
 #[pyclass]
-#[derive(Debug, Clone)]
-enum SegmentKind {
-    Unknown,
-    AsciiSentence,
-    Page
-}
-
-#[pyclass]
 struct Segment {
     #[pyo3(get)]
     start: u64,
     #[pyo3(get)]
     end: u64,
-    #[pyo3(get)]
-    kind: SegmentKind
 }
 
 #[pymethods]
 impl Segment {
     fn __repr__(&self) -> String {
-        format!("Segment: {}--{} ({:?})", self.start, self.end, self.kind)
+        format!("Segment: {}--{}", self.start, self.end)
     }
 }
 
-fn sentence_classifier(segment: &Vec<u8>) -> SegmentKind {
+fn is_sentence(segment: &Vec<u8>) -> bool {
     //single-character based classification of segments.
     // i.e. checks if standard english sentence
     for be in segment {
@@ -44,27 +34,37 @@ fn sentence_classifier(segment: &Vec<u8>) -> SegmentKind {
           b'.' => continue,
           b',' => continue,
           b' ' => continue,
-          _ => return SegmentKind::Unknown
+          _ => return false
         }
     }
-    return SegmentKind::AsciiSentence
+    return true
 }
 
+#[pyclass]
+struct Segments {
+   indices: Vec<u64>
+}
 
-fn page_classifier(segment: &Vec<u8>) -> SegmentKind {
-    let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        [\s\S]+\n      </contributor>\n[\s\S]+$").unwrap();
-    
-    if re.is_match(segment) {
-        return SegmentKind::Page
-    } else {
-        return SegmentKind::Unknown
+#[pymethods]
+impl Segments {
+    fn getitem(&self, n: usize) -> Segment {
+        Segment {
+            start: self.indices[n],
+            end: self.indices[n+1]
+        }
     }
+}
+
+fn is_page(segment: &Vec<u8>) -> bool {
+    let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        [\s\S]+\n      </contributor>\n[\s\S]+$").unwrap();
+    re.is_match(segment)
 }
 
 
 #[pyclass]
 struct FunPyre {
-    file : File,
+    file: File,
+    //pages: Segments
 }
 
 impl FunPyre {
@@ -82,15 +82,14 @@ impl FunPyre {
         self.rfrom_index(seg.start, n_bytes)
     }
 
-    fn ascan<F>(&self, split_at: &Vec<u8>, scanner: F, split_left: bool, iterations: usize) -> Result<Vec<Segment>, &str>
-        where F: Fn(&Vec<u8>) -> SegmentKind
+    fn ascan(&self, split_at: &Vec<u8>, split_left: bool, iterations: usize) -> Result<Segments, &str>
     {
         let mut buf_reader = BufReader::new(&self.file);
         buf_reader.seek(SeekFrom::Start(0)).unwrap();
         
-        let mut idx = 0;
         let mut tmp = Vec::with_capacity(512);
         let mut out = Vec::with_capacity(iterations);
+        out.push(0);
 
         let split = split_at.last().unwrap().clone();
         let splen = split_at.len();
@@ -98,7 +97,7 @@ impl FunPyre {
         'iters: loop {
             let readlen = buf_reader.read_until(split, &mut tmp).unwrap();
             if readlen == 0 {
-                return Ok(out)
+                return Ok(Segments{ indices: out })
             }
             if readlen < splen {
                 continue
@@ -111,26 +110,20 @@ impl FunPyre {
                 }
             }
 
-            if split_left {
-                tmp.truncate(trunclen);
-            }
+            // if split_left {
+            //     tmp.truncate(trunclen); //tmp is not used at the moment
+            // }
 
-            let x = Segment {
-                start: idx,
-                end: buf_reader.stream_position().unwrap() - if split_left { splen as u64 } else { 0 },
-                kind: scanner(&tmp)
-            };
-            idx = x.end;
-            out.push(x);
+            out.push( buf_reader.stream_position().unwrap() - if split_left { splen as u64 } else { 0 } );
             if out.len() == iterations {
-                return Ok(out)
+                return Ok(Segments{ indices: out })
             }
 
-            if split_left {
-                tmp = split_at.clone();
-            } else {
-                tmp.clear(); // as read_until only appends
-            }
+            //if split_left {
+            //    tmp = split_at.clone();
+            //} else {
+                tmp.clear();
+            //}
         }
     }
 }
@@ -142,6 +135,7 @@ impl FunPyre {
         let file = File::open(filename).unwrap();
         FunPyre {
             file,
+            //pages: Segments { indices: vec![] }
         }
     }
 
@@ -149,12 +143,12 @@ impl FunPyre {
         Ok(self_.rfrom_segment(segment).unwrap())
     }
 
-    fn find_sentences(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
-        Ok( self_.ascan(&b".".to_vec(), sentence_classifier, false, iterations).unwrap() )
+    fn find_sentences(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Segments> {
+        Ok( self_.ascan(&b".".to_vec(), false, iterations).unwrap() )
     }
 
-    fn find_pages(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Vec<Segment>> {
-        Ok( self_.ascan(&b"<page".to_vec(), page_classifier, true, iterations).unwrap() )
+    fn find_pages(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Segments> {
+        Ok( self_.ascan(&b"<page".to_vec(), true, iterations).unwrap() )
     }
 
 }
