@@ -52,7 +52,7 @@ fn sentence_classifier(segment: &Vec<u8>) -> SegmentKind {
 
 
 fn page_classifier(segment: &Vec<u8>) -> SegmentKind {
-    let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>[\s\S]+$").unwrap();
+    let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        [\s\S]+\n      </contributor>\n[\s\S]+$").unwrap();
     
     if re.is_match(segment) {
         return SegmentKind::Page
