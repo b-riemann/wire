@@ -124,7 +124,7 @@ impl FunPyre {
 
             let x = Segment {
                 start: idx,
-                end: buf_reader.stream_position().unwrap() - match split_left { true => splen as u64, false => 0 },
+                end: buf_reader.stream_position().unwrap() - if split_left { splen as u64 } else { 0 },
                 kind: scanner(&tmp)
             };
             idx = x.end;
