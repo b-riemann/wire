@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use pyo3::exceptions::PyTypeError;
 use std::io::prelude::*;
 
 use std::fs::File;
@@ -7,7 +8,7 @@ use std::io::BufReader;
 use std::io::SeekFrom;
 use std::str;
 
-//use regex::bytes::Regex;
+use regex::bytes::Regex;
 
 #[pyclass]
 #[derive(Clone)]
@@ -105,16 +106,13 @@ struct FunPyre {
 
 
 impl FunPyre {
-    fn rfrom_index(&self, start_index: u64, n_bytes: usize) -> Result<String, &str> {
+    fn rfrom_index(&self, start_index: u64, n_bytes: usize) -> Vec<u8> {
         let mut buf = vec![0; n_bytes];
         self.file.read_exact_at(&mut buf, start_index).unwrap();
-        match str::from_utf8(&buf) {
-            Ok(ostr) => Ok(ostr.to_string()),
-            Err(_) => Err("utf-8 problem")
-        }
+        buf
     }
 
-    fn rfrom_segment(&self, seg: &Segment) -> Result<String, &str> {
+    fn rfrom_segment(&self, seg: &Segment) -> Vec<u8> {
         let n_bytes = (seg.end - seg.start) as usize;
         self.rfrom_index(seg.start, n_bytes)
     }
@@ -140,7 +138,11 @@ impl FunPyre {
     }
 
     fn from_segment(self_: PyRef<'_, Self>, segment: &Segment) -> PyResult<String> {
-        Ok(self_.rfrom_segment(segment).unwrap())
+        let buf = self_.rfrom_segment(segment);
+        match str::from_utf8(&buf) {
+            Ok(ostr) => Ok(ostr.to_string()),
+            Err(_) => Err(PyTypeError::new_err("utf-8 problem"))
+        }
     }
 
     fn find_sentences(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Segments> {
@@ -153,6 +155,15 @@ impl FunPyre {
 
 }
 
+enum Token {
+    AsciiWord{ wrd: Vec<u8> },
+    PageMacro {
+        id: u8,
+        rev_id: u32,
+        tstamp_2k: u32,
+    }
+} 
+
 
 #[pyclass]
 struct Page {
@@ -161,6 +172,9 @@ struct Page {
     #[pyo3(get)]
     content: Segment
 }
+
+const PAGEBYTE : u8 = b'\x00';
+
 
 #[pymethods]
 impl Page {
@@ -171,17 +185,20 @@ impl Page {
         Page { head, content }
     }
 
-    //{
-    //    let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        [\s\S]+\n      </contributor>\n[\s\S]+$").unwrap();
-    //    let caps = re.captures(seg).unwrap();
-    //    Page {
-    //        title: caps[1],
-    //        id: caps[3],
-    //        rev_id: caps[4]
-    //        rev_timestamp: 
-    //    }
+    fn tokenize_head(&self, f: &FunPyre) -> Vec<u8> { // ToDo: Buffer instead of Vec
+        let re = Regex::new(r"^<page>\n    <title>.*</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        [\s\S]+\n      </contributor>\n[\s\S]+$").unwrap();
 
-    //}
+        let input = f.rfrom_segment(&self.head);
+        //let caps = re.captures(  ).unwrap();
+
+        let mut out = Vec::with_capacity(256);
+        //let id = caps[2];
+        //let rev_id = caps[3];
+        //let tstamp_2k : u32 = caps[9] +60*(caps[8] + 60*(caps[7] + 24*(caps[6] + 31*(caps[5] + 12*caps[4]))));
+
+        out.push(PAGEBYTE);
+        out
+    }
 }
 
 
