@@ -41,9 +41,9 @@ impl Segment {
 //    return true
 //}
 
-fn asplit_buf<T>(buf: &mut T, split_at: &Vec<u8>, split_left: bool, iterations: usize) -> Vec<u64>
+fn asplit_buf<T>(buf: &mut T, split_at: &Vec<u8>, split_left: bool, mut iterations: usize) -> Vec<u64>
     where T: BufRead + Seek {
-    let mut out = Vec::with_capacity(iterations);
+    let mut out = Vec::with_capacity(iterations+1);
     out.push( buf.stream_position().unwrap() );
 
     let mut tmp = Vec::with_capacity(512);
@@ -69,9 +69,9 @@ fn asplit_buf<T>(buf: &mut T, split_at: &Vec<u8>, split_left: bool, iterations: 
         // if split_left {
         //     tmp.truncate(trunclen); //tmp is not used at the moment
         // }
-
         out.push( buf.stream_position().unwrap() - if split_left { splen as u64 } else { 0 } );
-        if out.len() == iterations {
+        iterations -= 1;
+        if iterations == 0 {
             return out
         }
 
