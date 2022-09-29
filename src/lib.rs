@@ -84,7 +84,7 @@ fn asplit_buf<T>(buf: &mut T, split_at: &Vec<u8>, split_left: bool, mut iteratio
 
 
 #[pyclass]
-pub struct Segments {
+struct Segments {
    indices: Vec<u64>
 }
 
@@ -101,6 +101,7 @@ impl Segments {
 #[pyclass]
 pub struct FunPyre {
     file: File,
+    pages: Segments
 }
 
 
@@ -112,12 +113,13 @@ impl FunPyre {
         buf
     }
 
-    fn ascan(&self, split_at: &Vec<u8>, split_left: bool, iterations: usize, start: u64) -> Result<Segments, &str>
-    {
-        let mut buf_reader = BufReader::new(&self.file);
-        buf_reader.seek(SeekFrom::Start(start)).unwrap();
-        let indices = asplit_buf(&mut buf_reader, split_at, split_left, iterations);
-        Ok( Segments{ indices } )
+    fn rfrom_segment(&self, seg: &Segment) -> Vec<u8> {
+        let n_bytes = (seg.end - seg.start) as usize;
+        self.rfrom_index(seg.start, n_bytes)
+    }
+
+    pub fn fetch_page(&self, n: usize) -> Vec<u8> {
+        self.rfrom_segment( &self.pages.getitem(n) )
     }
 }
 
@@ -130,48 +132,26 @@ fn uvec_to_string(uvec: &Vec<u8>) -> PyResult<String> {
 }
 
 impl FunPyre {
-    pub fn find_pages(&self, iterations: usize) -> Result<Segments, &str> {
-        self.ascan(&b"<page".to_vec(), true, iterations, 0)
-    }
-
-    pub fn rfrom_segment(&self, seg: &Segment) -> Vec<u8> {
-        let n_bytes = (seg.end - seg.start) as usize;
-        self.rfrom_index(seg.start, n_bytes)
-    }
 }
 
 
 #[pymethods]
 impl FunPyre {
     #[new]
-    pub fn new(filename: String) -> Self {
+    pub fn new(filename: String, n_pages: usize) -> Self {
         let file = File::open(filename).unwrap();
+        let mut buf_reader = BufReader::new(&file);
+        buf_reader.seek(SeekFrom::Start(0)).unwrap();
+        let indices = asplit_buf(&mut buf_reader, &b"<page".to_vec(), true, n_pages);
         FunPyre {
             file,
-            //pages: Segments { indices: vec![] }
+            pages: Segments { indices }
         }
     }
 
     fn from_segment(self_: PyRef<'_, Self>, segment: &Segment) -> PyResult<String> {
         uvec_to_string( &self_.rfrom_segment(segment) )
     }
-
-    fn find_sentences(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Segments> {
-        Ok( self_.ascan(&b".".to_vec(), false, iterations, 0).unwrap() )
-    }
-
-    fn ffind_pages(self_: PyRef<'_, Self>, iterations: usize) -> PyResult<Segments> {
-        Ok( self_.find_pages(iterations).unwrap() )
-    }
-
-}
-
-#[pyclass]
-struct Page {
-    #[pyo3(get)]
-    head: Segment,
-    #[pyo3(get)]
-    content: Segment
 }
 
 // these bytes should not be part of the input file (they aren't for enwik9),
@@ -206,21 +186,9 @@ fn tokenize_page_string(seg: &Segment, f: &FunPyre) -> PyResult<String> {
     uvec_to_string( &tokenize_page( &f.rfrom_segment(seg) ) )
 }
 
-#[pymethods]
-impl Page {
-    #[new]
-    fn new(seg: &Segment, f: &FunPyre) -> Page {
-        let head = f.ascan(&b"</contributor>\n".to_vec(), false, 1, seg.start).unwrap().getitem(0);
-        let content = Segment{ start: head.end, end: seg.end };
-        Page { head, content }
-    }
-}
-
-
 #[pymodule]
 fn pyre(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<FunPyre>()?;
-    m.add_class::<Page>()?;
     m.add_wrapped(wrap_pyfunction!(tokenize_page_string)).unwrap();
     Ok(())
 }
