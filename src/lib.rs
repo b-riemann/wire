@@ -83,12 +83,10 @@ fn asplit_buf<T>(buf: &mut T, split_at: &Vec<u8>, split_left: bool, mut iteratio
 }
 
 
-#[pyclass]
 struct Segments {
    indices: Vec<u64>
 }
 
-#[pymethods]
 impl Segments {
     pub fn getitem(&self, n: usize) -> Segment {
         Segment {
@@ -98,13 +96,67 @@ impl Segments {
     }
 }
 
-#[pyclass]
-pub struct FunPyre {
-    file: File,
-    pages: Segments
+// these bytes should not be part of the input file (they aren't for enwik9),
+// and preferably still be part of the ascii table (for easier utf8 output for conversion if required
+const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
+const ANTISPACE : u8 = b'\x15'; // x08 would be nice, as its backspace in ascii
+
+//const LANTI : [u8; 2] = [ANTISPACE, b' '];
+const RANTI : [u8; 2] = [b' ', ANTISPACE];
+
+pub struct PageRegexer {
+    re: Regex
+}
+
+impl PageRegexer {
+    fn new() -> Self {
+        PageRegexer {
+            re: Regex::new(r"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space=([\s\S]+)$").unwrap()
+        }
+    }
+
+    pub fn rex(&self, invec: &Vec<u8>) -> Vec<u8> {
+        let caps = self.re.captures( &invec ).unwrap();
+        let mut ot = vec![MACROBYTE, b'p', b'a', b'g', b'e', b' '];
+        ot.extend_from_slice( &caps[2] );
+        ot.push(b' ');
+        ot.extend_from_slice( &caps[4] );
+        ot.push(b' ');
+        ot.extend_from_slice( &caps[5] );
+        ot.extend_from_slice( &caps[6] );
+        ot.extend_from_slice( &caps[7] );
+        ot.extend_from_slice( &caps[8] );
+        ot.extend_from_slice( &caps[9] );
+        ot.extend_from_slice( &caps[10] );
+        ot.extend(b" revision:");
+        ot.extend_from_slice( &caps[3] );
+        ot.extend(b": contributor:");
+        ot.extend_from_slice( &caps[11] );
+        ot.extend(b": comment:");
+        ot.extend_from_slice( &caps[12] );
+        ot.extend(b": title:");
+        ot.extend_from_slice( &caps[1] );
+        ot.extend(RANTI);
+        ot.push(b'\n');
+    
+        //main text
+        ot.extend_from_slice( &caps[13] );
+        ot
+    }
+
+    //pub fn unrex(&self, ev: &Vec<u8>)
 }
 
 
+
+
+
+#[pyclass]
+pub struct FunPyre {
+    file: File,
+    pages: Segments,
+    pub pagere: PageRegexer
+}
 
 impl FunPyre {
     fn rfrom_index(&self, start_index: u64, n_bytes: usize) -> Vec<u8> {
@@ -131,9 +183,6 @@ fn uvec_to_string(uvec: &Vec<u8>) -> PyResult<String> {
     }
 }
 
-impl FunPyre {
-}
-
 
 #[pymethods]
 impl FunPyre {
@@ -145,7 +194,8 @@ impl FunPyre {
         let indices = asplit_buf(&mut buf_reader, &b"<page".to_vec(), true, n_pages);
         FunPyre {
             file,
-            pages: Segments { indices }
+            pages: Segments { indices },
+            pagere: PageRegexer::new()
         }
     }
 
@@ -154,41 +204,8 @@ impl FunPyre {
     }
 }
 
-// these bytes should not be part of the input file (they aren't for enwik9),
-// and preferably still be part of the ascii table (for easier utf8 output for conversion if required
-const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
-const ANTISPACE : u8 = b'\x15'; // x08 would be nice, as its backspace in ascii
-
-pub fn tokenize_page(invec: &Vec<u8>) -> Vec<u8> {
-    let re = Regex::new(r"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    [\s\S]*<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        [\s\S]+\n      </contributor>\n([\s\S]+)$").unwrap();
-    let caps = re.captures( &invec ).unwrap();
-    let mut ot = vec![MACROBYTE, b'p', b'a', b'g', b'e', b' '];
-    ot.extend_from_slice( &caps[1] );
-    ot.push(b' ');
-    ot.extend_from_slice( &caps[2] );
-    ot.push(b' ');
-    ot.extend_from_slice( &caps[4] );
-    ot.push(b' ');
-    ot.extend_from_slice( &caps[5] );
-    ot.extend_from_slice( &caps[6] );
-    ot.extend_from_slice( &caps[7] );
-    ot.extend_from_slice( &caps[8] );
-    ot.extend_from_slice( &caps[9] );
-    ot.extend(b" \n ");
-    //main text
-    ot.extend_from_slice( &caps[10] );
-    ot.push(ANTISPACE); //just for testing
-    ot
-}
-
-#[pyfunction]
-fn tokenize_page_string(seg: &Segment, f: &FunPyre) -> PyResult<String> {
-    uvec_to_string( &tokenize_page( &f.rfrom_segment(seg) ) )
-}
-
 #[pymodule]
 fn pyre(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<FunPyre>()?;
-    m.add_wrapped(wrap_pyfunction!(tokenize_page_string)).unwrap();
     Ok(())
 }
