@@ -103,19 +103,20 @@ const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in asc
 const ANTISPACE : u8 = b'\x15'; // x08 would be nice, as its backspace in ascii
 const UPCASE : u8 = b'\x07'; // uncheked if part of enwik
 
-//const LANTI : [u8; 2] = [ANTISPACE, b' '];
-const RANTI : [u8; 2] = [b' ', ANTISPACE];
+const UPSPC : [u8; 3] = [UPCASE, ANTISPACE, b' '];
 
 pub struct PageRegexer {
     re: Regex,
-    dotex: Regex
+    dotex_a: Regex,
+    dotex_b: Regex
 }
 
 impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            dotex: Regex::new(r"([a-z])\. ([A-Z])").unwrap()
+            dotex_a: Regex::new(r"([a-z])\.( [A-Z])").unwrap(),
+            dotex_b: Regex::new(r"([a-z])\.(\n+)([A-Z])").unwrap()
         }
     }
 
@@ -124,13 +125,18 @@ impl PageRegexer {
     }
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
-        let rpl : [u8; 6] = [b' ', ANTISPACE, b'.', UPCASE, ANTISPACE, b' '];
-        self.dotex.replace_all(inslice, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(8);
+        let rpl : [u8; 4] = [b' ', ANTISPACE, b'.', UPCASE];
+        let a = self.dotex_a.replace_all(inslice, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(6);
+            x.extend_from_slice( &caps[1] ); x.extend(rpl); x.extend_from_slice( &caps[2] );
+            x }).into_owned();
+        let b = self.dotex_b.replace_all(&a, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(10);
             x.extend_from_slice( &caps[1] );
-            x.extend(rpl);
-            x.extend_from_slice( &caps[2] );
-            x }).into_owned()
+            x.extend(&rpl[..3]); x.extend_from_slice( &caps[2] );
+            x.extend(&UPSPC); x.extend_from_slice( &caps[3] );
+            x }).into_owned();
+        b
     }
 
     pub fn rex(&self, invec: &Vec<u8>) -> Vec<u8> {
@@ -156,7 +162,7 @@ impl PageRegexer {
         ot.extend_from_slice( &caps[13] );
         ot.extend(b": title:");
         ot.extend_from_slice( &caps[1] );
-        ot.extend(RANTI);
+        ot.extend(&[b' ', ANTISPACE]);
         ot.push(b'\n');
  
         ot.append( &mut self.rex_content( &caps[14] ));

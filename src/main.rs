@@ -22,7 +22,7 @@ fn main() {
         //print!("--Page {} (original)--\n{}\n", pagenum, str::from_utf8(&iv).unwrap());
         let mut ev = fp.pagere.rex(&iv);
         ev.truncate(2500);
-        println!("--Page {} (tokenized)--\n{}\n", pagenum, str::from_utf8(&ev).unwrap());
+        println!("--Page {} (rexed)--\n{}\n", pagenum, str::from_utf8(&ev).unwrap());
     }
 }
 
