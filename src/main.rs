@@ -25,3 +25,20 @@ fn main() {
         println!("--Page {} (tokenized)--\n{}\n", pagenum, str::from_utf8(&ev).unwrap());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn canbe_pagerexed() {
+        let fp = FunPyre::new("../workfiles/enwik9".to_string(), 350);
+        let iv = fp.fetch_page(0);
+        assert_eq!(fp.pagere.matches(&iv), false);
+        for pagenum in 1..350 {
+            let iv = fp.fetch_page(pagenum);
+            assert!(fp.pagere.matches(&iv));
+        }
+    }
+
+
+}

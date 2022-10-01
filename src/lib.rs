@@ -111,8 +111,16 @@ pub struct PageRegexer {
 impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
-            re: Regex::new(r"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space=([\s\S]+)$").unwrap()
+            re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"([\s\S]+)$"#).unwrap()
         }
+    }
+
+    pub fn matches(&self, invec: &Vec<u8>) -> bool {
+        self.re.is_match(&invec)
+    }
+
+    fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
+        inslice.to_vec()
     }
 
     pub fn rex(&self, invec: &Vec<u8>) -> Vec<u8> {
@@ -138,18 +146,13 @@ impl PageRegexer {
         ot.extend_from_slice( &caps[1] );
         ot.extend(RANTI);
         ot.push(b'\n');
-    
-        //main text
-        ot.extend_from_slice( &caps[13] );
+ 
+        ot.append( &mut self.rex_content( &caps[13] ));
         ot
     }
 
     //pub fn unrex(&self, ev: &Vec<u8>)
 }
-
-
-
-
 
 #[pyclass]
 pub struct FunPyre {
