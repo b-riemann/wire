@@ -31,10 +31,11 @@ mod tests {
     use super::*;
     #[test]
     fn canbe_pagerexed() {
-        let fp = FunPyre::new("../workfiles/enwik9".to_string(), 350);
+        let n_pages = 5000;
+        let fp = FunPyre::new("../workfiles/enwik9".to_string(), n_pages);
         let iv = fp.fetch_page(0);
         assert_eq!(fp.pagere.matches(&iv), false);
-        for pagenum in 1..350 {
+        for pagenum in 1..n_pages {
             let iv = fp.fetch_page(pagenum);
             assert!(fp.pagere.matches(&iv));
         }

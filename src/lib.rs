@@ -9,6 +9,7 @@ use std::io::SeekFrom;
 use std::str;
 
 use regex::bytes::Regex;
+use regex::bytes::Captures;
 
 #[pyclass]
 #[derive(Clone)]
@@ -100,18 +101,21 @@ impl Segments {
 // and preferably still be part of the ascii table (for easier utf8 output for conversion if required
 const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
 const ANTISPACE : u8 = b'\x15'; // x08 would be nice, as its backspace in ascii
+const UPCASE : u8 = b'\x07'; // uncheked if part of enwik
 
 //const LANTI : [u8; 2] = [ANTISPACE, b' '];
 const RANTI : [u8; 2] = [b' ', ANTISPACE];
 
 pub struct PageRegexer {
-    re: Regex
+    re: Regex,
+    dotex: Regex
 }
 
 impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
-            re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"([\s\S]+)$"#).unwrap()
+            re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
+            dotex: Regex::new(r"([a-z])\. ([A-Z])").unwrap()
         }
     }
 
@@ -120,7 +124,13 @@ impl PageRegexer {
     }
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
-        inslice.to_vec()
+        let rpl : [u8; 6] = [b' ', ANTISPACE, b'.', UPCASE, ANTISPACE, b' '];
+        self.dotex.replace_all(inslice, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(8);
+            x.extend_from_slice( &caps[1] );
+            x.extend(rpl);
+            x.extend_from_slice( &caps[2] );
+            x }).into_owned()
     }
 
     pub fn rex(&self, invec: &Vec<u8>) -> Vec<u8> {
@@ -142,12 +152,14 @@ impl PageRegexer {
         ot.extend_from_slice( &caps[11] );
         ot.extend(b": comment:");
         ot.extend_from_slice( &caps[12] );
+        ot.extend(b": texml:");
+        ot.extend_from_slice( &caps[13] );
         ot.extend(b": title:");
         ot.extend_from_slice( &caps[1] );
         ot.extend(RANTI);
         ot.push(b'\n');
  
-        ot.append( &mut self.rex_content( &caps[13] ));
+        ot.append( &mut self.rex_content( &caps[14] ));
         ot
     }
 
