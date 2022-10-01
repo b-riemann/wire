@@ -107,16 +107,22 @@ const UPSPC : [u8; 3] = [UPCASE, ANTISPACE, b' '];
 
 pub struct PageRegexer {
     re: Regex,
-    dotex_a: Regex,
-    dotex_b: Regex
+    comma: Regex,
+    dot_stc: Regex, // sentence
+    dot_par: Regex, // paragraph
+    dot_end: Regex,
+    ttl: Regex
 }
 
 impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            dotex_a: Regex::new(r"([a-z])\.( [A-Z])").unwrap(),
-            dotex_b: Regex::new(r"([a-z])\.(\n+)([A-Z])").unwrap()
+            comma:   Regex::new(r"([a-z\)\]])(, \[*[a-zA-Z])").unwrap(),
+            dot_stc: Regex::new(r"([a-z\)\]])\.( \[*[A-Z])").unwrap(),
+            dot_par: Regex::new(r"([a-z\)\]])\.(\n+)(\[*[A-Z])").unwrap(),
+            dot_end: Regex::new(r"([a-z\)\]])\.(\n+)").unwrap(),
+            ttl: Regex::new(r"(\n=+)([A-Z][a-z A-Z\)\(]+)(=+\n)").unwrap()
         }
     }
 
@@ -126,44 +132,47 @@ impl PageRegexer {
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
         let rpl : [u8; 4] = [b' ', ANTISPACE, b'.', UPCASE];
-        let a = self.dotex_a.replace_all(inslice, |caps: &Captures| { 
+        let a = self.comma.replace_all(inslice, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(6);
+            x.extend_from_slice( &caps[1] ); x.extend(&rpl[..2]); x.extend_from_slice( &caps[2] );
+            x }).into_owned();
+        let b = self.dot_stc.replace_all(&a, |caps: &Captures| { 
             let mut x = Vec::with_capacity(6);
             x.extend_from_slice( &caps[1] ); x.extend(rpl); x.extend_from_slice( &caps[2] );
             x }).into_owned();
-        let b = self.dotex_b.replace_all(&a, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(10);
+        let c = self.dot_par.replace_all(&b, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(16);
             x.extend_from_slice( &caps[1] );
             x.extend(&rpl[..3]); x.extend_from_slice( &caps[2] );
             x.extend(&UPSPC); x.extend_from_slice( &caps[3] );
             x }).into_owned();
-        b
+        let d = self.dot_end.replace_all(&c, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(16);
+            x.extend_from_slice( &caps[1] );
+            x.extend(&rpl[..3]); x.extend_from_slice( &caps[2] );
+            x }).into_owned();
+        self.ttl.replace_all(&d, |caps: &Captures| { 
+            let mut x = Vec::with_capacity(16);
+            x.extend_from_slice( &caps[1] );
+            x.extend(&UPSPC); x.extend_from_slice( &caps[2] );
+            x.extend(&rpl[..2]); x.extend_from_slice( &caps[3] );
+            x }).into_owned()
     }
 
     pub fn rex(&self, invec: &Vec<u8>) -> Vec<u8> {
         let caps = self.re.captures( &invec ).unwrap();
-        let mut ot = vec![MACROBYTE, b'p', b'a', b'g', b'e', b' '];
-        ot.extend_from_slice( &caps[2] );
-        ot.push(b' ');
-        ot.extend_from_slice( &caps[4] );
-        ot.push(b' ');
-        ot.extend_from_slice( &caps[5] );
-        ot.extend_from_slice( &caps[6] );
-        ot.extend_from_slice( &caps[7] );
-        ot.extend_from_slice( &caps[8] );
-        ot.extend_from_slice( &caps[9] );
-        ot.extend_from_slice( &caps[10] );
-        ot.extend(b" revision:");
-        ot.extend_from_slice( &caps[3] );
-        ot.extend(b": contributor:");
-        ot.extend_from_slice( &caps[11] );
-        ot.extend(b": comment:");
-        ot.extend_from_slice( &caps[12] );
-        ot.extend(b": texml:");
-        ot.extend_from_slice( &caps[13] );
-        ot.extend(b": title:");
-        ot.extend_from_slice( &caps[1] );
-        ot.extend(&[b' ', ANTISPACE]);
-        ot.push(b'\n');
+        let mut ot = Vec::with_capacity(1024);
+        ot.push(MACROBYTE); ot.extend(b"page ");
+        ot.extend_from_slice( &caps[2] ); ot.push(b' ');
+        ot.extend_from_slice( &caps[4] ); ot.push(b' ');
+        ot.extend_from_slice( &caps[5] ); ot.extend_from_slice( &caps[6] ); ot.extend_from_slice( &caps[7] );
+        ot.extend_from_slice( &caps[8] ); ot.extend_from_slice( &caps[9] ); ot.extend_from_slice( &caps[10] );
+        ot.extend(b" revision:"); ot.extend_from_slice( &caps[3] );
+        ot.extend(b": contributor:"); ot.extend_from_slice( &caps[11] );
+        ot.extend(b": comment:"); ot.extend_from_slice( &caps[12] );
+        ot.extend(b": texml:"); ot.extend_from_slice( &caps[13] );
+        ot.extend(b": title:"); ot.extend_from_slice( &caps[1] );
+        ot.extend(&[b' ', MACROBYTE, b' ']);
  
         ot.append( &mut self.rex_content( &caps[14] ));
         ot
