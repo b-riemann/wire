@@ -97,32 +97,40 @@ impl Segments {
     }
 }
 
-// these bytes should not be part of the input file (they aren't for enwik9),
+// for enwik9, available escape bytes are:
+//fb fd c0 0f f2 1d 0e 1c 7f 1b 08 1f fc 04 1e df 00 05 0c 19 f9 f8 18 10 0b 16 1a fa f3 \r f6 f7 12 f4 17 14 01 15 f1 f5 11 dd 07 13 c1 06 02 03
+// of which the ascii control characters are (00-1f)
+// 00 01 02 03 04 05 06 07 08 \r(0a) 0b 0c 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f
+
+// these escape bytes should not be part of the input file
 // and preferably still be part of the ascii table (for easier utf8 output for conversion if required
 const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
-const ANTISPACE : u8 = b'\x15'; // x08 would be nice, as its backspace in ascii
+const ANTISPACE : u8 = b'\x15';
+const GLUESPACE : u8 = b'\x16';
 const UPCASE : u8 = b'\x07'; // uncheked if part of enwik
-
-const UPSPC : [u8; 3] = [UPCASE, ANTISPACE, b' '];
 
 pub struct PageRegexer {
     re: Regex,
     comma: Regex,
-    dot_stc: Regex, // sentence
-    dot_par: Regex, // paragraph
-    dot_end: Regex,
-    ttl: Regex
+    end_stc: Regex, // sentence
+    beg_stc: Regex,
+    beg_par: Regex,
+    openduo: Regex,
+    clseduo: Regex
 }
 
 impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            comma:   Regex::new(r"([a-z\)\]])(, \[*[a-zA-Z])").unwrap(),
-            dot_stc: Regex::new(r"([a-z\)\]])\.( \[*[A-Z])").unwrap(),
-            dot_par: Regex::new(r"([a-z\)\]])\.(\n+)(\[*[A-Z])").unwrap(),
-            dot_end: Regex::new(r"([a-z\)\]])\.(\n+)").unwrap(),
-            ttl: Regex::new(r"(\n=+)([A-Z][a-z A-Z\)\(]+)(=+\n)").unwrap()
+            comma:   Regex::new(r"([\w|\]|\)]), ").unwrap(),
+            end_stc: Regex::new(r"([\w|\]|\)])\.([ \n])").unwrap(),
+            beg_stc: Regex::new(r"\. ([A-Z])").unwrap(),
+            beg_par: Regex::new(r"\n([A-Z])").unwrap(),
+            //links:  Regex::new(r"\[\[(Wikiquote:|Image:)(\w.*)\]\]").unwrap(),
+            //macrs:  Regex::new(r"\{\{(\w*)|(\w)").unwrap(),
+            openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
+            clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap()
         }
     }
 
@@ -131,32 +139,30 @@ impl PageRegexer {
     }
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
-        let rpl : [u8; 4] = [b' ', ANTISPACE, b'.', UPCASE];
         let a = self.comma.replace_all(inslice, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(6);
-            x.extend_from_slice( &caps[1] ); x.extend(&rpl[..2]); x.extend_from_slice( &caps[2] );
+            let mut x = [b'X', b' ', ANTISPACE, b',', b' '];
+            x[0] = caps[1][0];
             x }).into_owned();
-        let b = self.dot_stc.replace_all(&a, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(6);
-            x.extend_from_slice( &caps[1] ); x.extend(rpl); x.extend_from_slice( &caps[2] );
-            x }).into_owned();
-        let c = self.dot_par.replace_all(&b, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(16);
-            x.extend_from_slice( &caps[1] );
-            x.extend(&rpl[..3]); x.extend_from_slice( &caps[2] );
-            x.extend(&UPSPC); x.extend_from_slice( &caps[3] );
-            x }).into_owned();
-        let d = self.dot_end.replace_all(&c, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(16);
-            x.extend_from_slice( &caps[1] );
-            x.extend(&rpl[..3]); x.extend_from_slice( &caps[2] );
-            x }).into_owned();
-        self.ttl.replace_all(&d, |caps: &Captures| { 
-            let mut x = Vec::with_capacity(16);
-            x.extend_from_slice( &caps[1] );
-            x.extend(&UPSPC); x.extend_from_slice( &caps[2] );
-            x.extend(&rpl[..2]); x.extend_from_slice( &caps[3] );
-            x }).into_owned()
+        let b = self.end_stc.replace_all(&a, |caps: &Captures| { 
+            [caps[1][0], b' ', ANTISPACE, b'.', caps[2][0]]
+            }).into_owned();
+        let c = self.beg_stc.replace_all(&b, |caps: &Captures| { 
+            [b'.', UPCASE, b' ', caps[1][0]]
+            }).into_owned();
+        let d = self.beg_par.replace_all(&c, |caps: &Captures| { 
+            [b'\n', UPCASE, ANTISPACE, b' ', caps[1][0]]
+            }).into_owned();
+        // TODO: glue links and macros together with gluespace as a first step (macrobyte+macrotype single+glued-arg), late analyse in detail when text-parsing is implemented.
+        // [[Wiktionary: and so forth should be replaced here at latest 
+        //self.links 
+        //self.mcrs
+
+        let e = self.openduo.replace_all(&d, |caps: &Captures| { 
+            [caps[1][0], caps[1][1], ANTISPACE, b' ', caps[2][0]]
+            }).into_owned();
+        self.clseduo.replace_all(&e, |caps: &Captures| { 
+            [caps[1][0], b' ', ANTISPACE, caps[2][0], caps[2][1]]
+            }).into_owned()
     }
 
     pub fn rex(&self, invec: &Vec<u8>) -> Vec<u8> {
