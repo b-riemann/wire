@@ -106,7 +106,7 @@ impl Segments {
 // and preferably still be part of the ascii table (for easier utf8 output for conversion if required
 const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
 const ANTISPACE : u8 = b'\x15';
-const GLUESPACE : u8 = b'\x16';
+//const GLUESPACE : u8 = b'\x16';
 const UPCASE : u8 = b'\x07'; // uncheked if part of enwik
 
 pub struct PageRegexer {
@@ -116,21 +116,33 @@ pub struct PageRegexer {
     beg_stc: Regex,
     beg_par: Regex,
     openduo: Regex,
-    clseduo: Regex
+    clseduo: Regex,
+    inbrakl: Regex,
+    inbrakr: Regex
 }
+
+//fn glue(inv: &[u8]) -> Vec<u8> {
+//    let mut x : Vec<u8> = inv.to_vec();
+//    for n in 0..x.len() {
+//        if x[n] == b' ' {
+//            x[n] = GLUESPACE;
+//        }
+//    }
+//    x
+//}
 
 impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            comma:   Regex::new(r"([\w|\]|\)]), ").unwrap(),
-            end_stc: Regex::new(r"([\w|\]|\)])\.([ \n])").unwrap(),
+            comma:   Regex::new(r"(\w), ").unwrap(),
+            end_stc: Regex::new(r"(\w)\.([ \n])").unwrap(),
             beg_stc: Regex::new(r"\. ([A-Z])").unwrap(),
             beg_par: Regex::new(r"\n([A-Z])").unwrap(),
-            //links:  Regex::new(r"\[\[(Wikiquote:|Image:)(\w.*)\]\]").unwrap(),
-            //macrs:  Regex::new(r"\{\{(\w*)|(\w)").unwrap(),
             openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
-            clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap()
+            clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap(),
+            inbrakl: Regex::new(r"(\w)\|").unwrap(),
+            inbrakr: Regex::new(r"\|(\w)").unwrap()
         }
     }
 
@@ -154,14 +166,18 @@ impl PageRegexer {
             }).into_owned();
         // TODO: glue links and macros together with gluespace as a first step (macrobyte+macrotype single+glued-arg), late analyse in detail when text-parsing is implemented.
         // [[Wiktionary: and so forth should be replaced here at latest 
-        //self.links 
-        //self.mcrs
 
         let e = self.openduo.replace_all(&d, |caps: &Captures| { 
             [caps[1][0], caps[1][1], ANTISPACE, b' ', caps[2][0]]
             }).into_owned();
-        self.clseduo.replace_all(&e, |caps: &Captures| { 
+        let f = self.clseduo.replace_all(&e, |caps: &Captures| { 
             [caps[1][0], b' ', ANTISPACE, caps[2][0], caps[2][1]]
+            }).into_owned();
+        let g = self.inbrakl.replace_all(&f, |caps: &Captures| { 
+            [caps[1][0], b' ', ANTISPACE, b'|']
+            }).into_owned();
+        self.inbrakr.replace_all(&g, |caps: &Captures| { 
+            [b'|', ANTISPACE, b' ', caps[1][0]]
             }).into_owned()
     }
 

@@ -1,6 +1,7 @@
 mod lib;
 use lib::FunPyre;
 use std::str;
+use std::collections::HashMap;
 
 //fn scan_overview(fp: &FunPyre, first: usize) {
 //    println!("--Scanning first {} pages for length--\npage  length", first);
@@ -10,6 +11,39 @@ use std::str;
 //    }
 //}
 
+struct WordCounter {
+    hm: HashMap<Vec<u8>, usize>
+}
+
+impl WordCounter {
+    fn new() -> Self {
+        WordCounter { hm: HashMap::new() }
+    }
+
+    fn count_text(&mut self, iv: &Vec<u8>) {
+        // superbly stupid approach:
+        let mut a = 0;
+        for (b, ch) in iv.into_iter().enumerate() {
+            if ch==&b' ' {
+               let word = iv[a..b].to_vec();
+               a = b;
+               match self.hm.get_mut(&word) {
+                   Some(v) => {let n = *v + 1; *v = n;},
+                   None => { self.hm.insert(word.to_vec(), 1); }
+               }
+            }
+        }
+    }
+
+    fn display(&self) {
+        for (key, val) in &self.hm {
+            println!("{}: {}", str::from_utf8(&key).unwrap(), val);
+        }
+
+    }
+}
+
+
 fn main() {
     let fp = FunPyre::new("../workfiles/enwik9".to_string(), 350);
 
@@ -17,13 +51,18 @@ fn main() {
     
     let pagenums = [2,7,16,19,113,124,177,267,347];
 
+    let mut wc = WordCounter::new();
+
     for pagenum in pagenums {
         let iv = fp.fetch_page(pagenum);
         //print!("--Page {} (original)--\n{}\n", pagenum, str::from_utf8(&iv).unwrap());
         let mut ev = fp.pagere.rex(&iv);
         ev.truncate(2500);
         println!("--Page {} (rexed)--\n{}\n", pagenum, str::from_utf8(&ev).unwrap());
+
+        wc.count_text(&ev);
     }
+    wc.display();
 }
 
 #[cfg(test)]
