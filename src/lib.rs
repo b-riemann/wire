@@ -106,21 +106,19 @@ impl Segments {
 // and preferably still be part of the ascii table (for easier utf8 output for conversion if required
 const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
 const ANTISPACE : u8 = b'\x15';
+// idea: glue links and macros together with gluespace as a first step (macrobyte+macrotype single+glued-arg), late analyse in detail when text-parsing is implemented.
 //const GLUESPACE : u8 = b'\x16';
 
 //TODO: make upcase part of the parsing process and not of the regex procedure
-const UPCASE : u8 = b'\x07';
+//const UPCASE : u8 = b'\x07';
 
 pub struct PageRegexer {
     re: Regex,
-    comma: Regex,
+    end_wrd: Regex,
     end_stc: Regex, // sentence
-    beg_stc: Regex,
-    beg_par: Regex,
+    beg_wrd: Regex,
     openduo: Regex,
     clseduo: Regex,
-    inbrakl: Regex,
-    inbrakr: Regex
 }
 
 //fn glue(inv: &[u8]) -> Vec<u8> {
@@ -137,14 +135,11 @@ impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            comma:   Regex::new(r"(\w), ").unwrap(),
+            end_wrd:   Regex::new(r"(\w)(,|&|\|)").unwrap(),
             end_stc: Regex::new(r"(\w)\.([ \n])").unwrap(),
-            beg_stc: Regex::new(r"\. ([A-Z])").unwrap(),
-            beg_par: Regex::new(r"\n([A-Z])").unwrap(),
+            beg_wrd: Regex::new(r"(\n|;|\|)([A-Za-z])").unwrap(),
             openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
             clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap(),
-            inbrakl: Regex::new(r"(\w)\|").unwrap(),
-            inbrakr: Regex::new(r"\|(\w)").unwrap()
         }
     }
 
@@ -153,33 +148,20 @@ impl PageRegexer {
     }
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
-        let a = self.comma.replace_all(inslice, |caps: &Captures| { 
-            let mut x = [b'X', b' ', ANTISPACE, b',', b' '];
-            x[0] = caps[1][0];
-            x }).into_owned();
+        let a = self.end_wrd.replace_all(inslice, |caps: &Captures| { 
+            [caps[1][0], b' ', ANTISPACE, caps[2][0]]
+            }).into_owned();
         let b = self.end_stc.replace_all(&a, |caps: &Captures| { 
             [caps[1][0], b' ', ANTISPACE, b'.', caps[2][0]]
             }).into_owned();
-        let c = self.beg_stc.replace_all(&b, |caps: &Captures| { 
-            [b'.', UPCASE, b' ', caps[1][0] + 32]  //+32 -> to lowercase
+        let c = self.beg_wrd.replace_all(&b, |caps: &Captures| { 
+            [caps[1][0], ANTISPACE, b' ', caps[2][0]]
             }).into_owned();
-        let d = self.beg_par.replace_all(&c, |caps: &Captures| { 
-            [b'\n', UPCASE, ANTISPACE, b' ', caps[1][0] + 32]
-            }).into_owned();
-        // TODO: glue links and macros together with gluespace as a first step (macrobyte+macrotype single+glued-arg), late analyse in detail when text-parsing is implemented.
-        // [[Wiktionary: and so forth should be replaced here at latest 
-
-        let e = self.openduo.replace_all(&d, |caps: &Captures| { 
+        let d = self.openduo.replace_all(&c, |caps: &Captures| { 
             [caps[1][0], caps[1][1], ANTISPACE, b' ', caps[2][0]]
             }).into_owned();
-        let f = self.clseduo.replace_all(&e, |caps: &Captures| { 
+        self.clseduo.replace_all(&d, |caps: &Captures| { 
             [caps[1][0], b' ', ANTISPACE, caps[2][0], caps[2][1]]
-            }).into_owned();
-        let g = self.inbrakl.replace_all(&f, |caps: &Captures| { 
-            [caps[1][0], b' ', ANTISPACE, b'|']
-            }).into_owned();
-        self.inbrakr.replace_all(&g, |caps: &Captures| { 
-            [b'|', ANTISPACE, b' ', caps[1][0]]
             }).into_owned()
     }
 
