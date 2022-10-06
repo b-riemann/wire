@@ -99,7 +99,7 @@ impl Segments {
 
 // for enwik9, available escape bytes are:
 //fb fd c0 0f f2 1d 0e 1c 7f 1b 08 1f fc 04 1e df 00 05 0c 19 f9 f8 18 10 0b 16 1a fa f3 \r f6 f7 12 f4 17 14 01 15 f1 f5 11 dd 07 13 c1 06 02 03
-// of which the ascii control characters are (00-1f)
+// of which the ascii control characters (in range 00-1f) are 
 // 00 01 02 03 04 05 06 07 08 \r(0a) 0b 0c 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f
 
 // these escape bytes should not be part of the input file
@@ -107,7 +107,9 @@ impl Segments {
 const MACROBYTE : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
 const ANTISPACE : u8 = b'\x15';
 //const GLUESPACE : u8 = b'\x16';
-const UPCASE : u8 = b'\x07'; // uncheked if part of enwik
+
+//TODO: make upcase part of the parsing process and not of the regex procedure
+const UPCASE : u8 = b'\x07';
 
 pub struct PageRegexer {
     re: Regex,
@@ -159,10 +161,10 @@ impl PageRegexer {
             [caps[1][0], b' ', ANTISPACE, b'.', caps[2][0]]
             }).into_owned();
         let c = self.beg_stc.replace_all(&b, |caps: &Captures| { 
-            [b'.', UPCASE, b' ', caps[1][0]]
+            [b'.', UPCASE, b' ', caps[1][0] + 32]  //+32 -> to lowercase
             }).into_owned();
         let d = self.beg_par.replace_all(&c, |caps: &Captures| { 
-            [b'\n', UPCASE, ANTISPACE, b' ', caps[1][0]]
+            [b'\n', UPCASE, ANTISPACE, b' ', caps[1][0] + 32]
             }).into_owned();
         // TODO: glue links and macros together with gluespace as a first step (macrobyte+macrotype single+glued-arg), late analyse in detail when text-parsing is implemented.
         // [[Wiktionary: and so forth should be replaced here at latest 

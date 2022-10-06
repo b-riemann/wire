@@ -1,7 +1,7 @@
 mod lib;
 use lib::FunPyre;
-use std::str;
 use std::collections::HashMap;
+use std::str;
 
 //fn scan_overview(fp: &FunPyre, first: usize) {
 //    println!("--Scanning first {} pages for length--\npage  length", first);
@@ -12,12 +12,16 @@ use std::collections::HashMap;
 //}
 
 struct WordCounter {
-    hm: HashMap<Vec<u8>, usize>
+    hm: HashMap<Vec<u8>, usize>,
+    n_nonsingular: usize
 }
 
 impl WordCounter {
     fn new() -> Self {
-        WordCounter { hm: HashMap::new() }
+        WordCounter {
+            hm: HashMap::new(),
+            n_nonsingular: 0
+        }
     }
 
     fn count_text(&mut self, iv: &Vec<u8>) {
@@ -28,7 +32,7 @@ impl WordCounter {
                let word = iv[a..b].to_vec();
                a = b;
                match self.hm.get_mut(&word) {
-                   Some(v) => {let n = *v + 1; *v = n;},
+                   Some(v) => {let n = *v + 1; *v = n; if n==2 { self.n_nonsingular += 1; }},
                    None => { self.hm.insert(word.to_vec(), 1); }
                }
             }
@@ -36,10 +40,13 @@ impl WordCounter {
     }
 
     fn display(&self) {
-        for (key, val) in &self.hm {
-            println!("{}: {}", String::from_utf8_lossy(&key).to_owned(), val);
+        let n_total = self.hm.len();
+        println!("nonsingular {} vs total {} ({:.3})", self.n_nonsingular, n_total, self.n_nonsingular/n_total);
+        for (key, val) in self.hm.iter().take(150) {
+            print!(":{}: {} ", String::from_utf8_lossy(&key).to_owned(), val);
         }
     }
+
 }
 
 
@@ -56,10 +63,9 @@ fn main() {
         let iv = fp.fetch_page(pagenum);
         //print!("--Page {} (original)--\n{}\n", pagenum, str::from_utf8(&iv).unwrap());
         let mut ev = fp.pagere.rex(&iv);
+        wc.count_text(&ev);
         ev.truncate(2500);
         println!("--Page {} (rexed)--\n{}\n", pagenum, str::from_utf8(&ev).unwrap());
-
-        wc.count_text(&ev);
     }
     wc.display();
 }
