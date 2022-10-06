@@ -114,9 +114,8 @@ const ANTISPACE : u8 = b'\x15';
 
 pub struct PageRegexer {
     re: Regex,
-    end_wrd: Regex,
-    end_stc: Regex, // sentence
     beg_wrd: Regex,
+    end_wrd: Regex,
     openduo: Regex,
     clseduo: Regex,
 }
@@ -135,9 +134,8 @@ impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            end_wrd:   Regex::new(r"(\w)(,|&|\|)").unwrap(),
-            end_stc: Regex::new(r"(\w)\.([ \n])").unwrap(),
-            beg_wrd: Regex::new(r"(\n|;|\|)([A-Za-z])").unwrap(),
+            beg_wrd: Regex::new(r"(\n|;|\||\()([A-Za-z])").unwrap(),
+            end_wrd: Regex::new(r"([A-Za-z])(,|\.|&|\||\))").unwrap(),
             openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
             clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap(),
         }
@@ -148,19 +146,16 @@ impl PageRegexer {
     }
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
-        let a = self.end_wrd.replace_all(inslice, |caps: &Captures| { 
-            [caps[1][0], b' ', ANTISPACE, caps[2][0]]
-            }).into_owned();
-        let b = self.end_stc.replace_all(&a, |caps: &Captures| { 
-            [caps[1][0], b' ', ANTISPACE, b'.', caps[2][0]]
-            }).into_owned();
-        let c = self.beg_wrd.replace_all(&b, |caps: &Captures| { 
+        let a = self.beg_wrd.replace_all(inslice, |caps: &Captures| { 
             [caps[1][0], ANTISPACE, b' ', caps[2][0]]
             }).into_owned();
-        let d = self.openduo.replace_all(&c, |caps: &Captures| { 
+        let b = self.end_wrd.replace_all(&a, |caps: &Captures| { 
+            [caps[1][0], b' ', ANTISPACE, caps[2][0]]
+            }).into_owned();
+        let c = self.openduo.replace_all(&b, |caps: &Captures| { 
             [caps[1][0], caps[1][1], ANTISPACE, b' ', caps[2][0]]
             }).into_owned();
-        self.clseduo.replace_all(&d, |caps: &Captures| { 
+        self.clseduo.replace_all(&c, |caps: &Captures| { 
             [caps[1][0], b' ', ANTISPACE, caps[2][0], caps[2][1]]
             }).into_owned()
     }
