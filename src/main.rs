@@ -37,9 +37,8 @@ impl WordCounter {
 
     fn display(&self) {
         for (key, val) in &self.hm {
-            println!("{}: {}", str::from_utf8(&key).unwrap(), val);
+            println!("{}: {}", String::from_utf8_lossy(&key).to_owned(), val);
         }
-
     }
 }
 
