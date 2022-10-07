@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 regex = "1"
+progress_bar = "1.0.2"
 
 [dependencies.pyo3]
 version = "0.17.1"
