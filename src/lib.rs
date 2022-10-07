@@ -134,7 +134,7 @@ impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            beg_wrd: Regex::new(r"(\n|;|\||\()([A-Za-z])").unwrap(),
+            beg_wrd: Regex::new(r"(\n|;|\||\(|-)([A-Za-z])").unwrap(), //note: weird to include - on one side but could help
             end_wrd: Regex::new(r"([A-Za-z])(,|\.|&|\||\))").unwrap(),
             openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
             clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap(),

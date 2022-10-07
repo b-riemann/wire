@@ -11,42 +11,81 @@ use std::str;
 //    }
 //}
 
-struct WordCounter {
+struct WordDict {
     hm: HashMap<Vec<u8>, usize>,
-    n_nonsingular: usize
+    nonsingular_entries: usize,
+    counted_words: usize
 }
 
-impl WordCounter {
+impl WordDict {
     fn new() -> Self {
-        WordCounter {
+        WordDict {
             hm: HashMap::new(),
-            n_nonsingular: 0
+            nonsingular_entries: 0,
+            counted_words: 0
         }
     }
 
-    fn count_text(&mut self, iv: &Vec<u8>) {
-        // superbly stupid approach:
-        let mut a = 0;
-        for (b, ch) in iv.into_iter().enumerate() {
-            if ch==&b' ' {
-               let word = iv[a..b].to_vec();
-               a = b;
-               match self.hm.get_mut(&word) {
-                   Some(v) => {let n = *v + 1; *v = n; if n==2 { self.n_nonsingular += 1; }},
-                   None => { self.hm.insert(word.to_vec(), 1); }
-               }
-            }
+    fn add(&mut self, word: &[u8]) {
+        let wv = word.to_vec();
+        match self.hm.get_mut(&wv) {
+            Some(v) => {let n = *v + 1; *v = n; if n==2 { self.nonsingular_entries += 1; }},
+            None => { self.hm.insert(wv, 1); }
         }
+        self.counted_words += 1;
     }
 
     fn display(&self) {
         let n_total = self.hm.len();
-        println!("nonsingular {} vs total {} ({:.3})", self.n_nonsingular, n_total, self.n_nonsingular/n_total);
+        println!("nonsingular {} vs total {} ({:.3})", self.nonsingular_entries, n_total, self.nonsingular_entries as f32 / n_total as f32);
         for (key, val) in self.hm.iter().take(150) {
             print!(":{}: {} ", String::from_utf8_lossy(&key).to_owned(), val);
         }
     }
 
+}
+
+struct WordAggregator {
+    english: WordDict, //used only for lowercase english (conversion)
+    unicode: WordDict
+}
+
+fn is_english(word: &[u8]) -> bool {
+    for ch in word {
+        match ch {
+            0x41..=0x5a => continue, //uppercase
+            0x61..=0x7a => continue, //lowercase
+            _ => return false  
+        }         
+    }
+    true
+}
+
+impl WordAggregator {
+    fn new() -> Self {
+        WordAggregator { english: WordDict::new(), unicode: WordDict::new() }
+    }
+ 
+    fn count_text(&mut self, iv: &Vec<u8>) {
+        // superbly stupid approach for splitting:
+        let mut a = 0;
+        for (b, ch) in iv.into_iter().enumerate() {
+            if ch==&b' ' {
+               let word = &iv[a..b]; //.to_vec();
+               a = b+1;
+
+               if is_english(word) {
+                   self.english.add(word); continue;
+               }
+               self.unicode.add(word);
+            }
+        }
+    }
+
+    fn display(&self) {
+        print!("english>> "); self.english.display();
+        print!("\n\nunicode>> "); self.unicode.display();
+    }
 }
 
 
@@ -57,7 +96,7 @@ fn main() {
     
     let pagenums = [2,7,16,19,113,124,177,267,347];
 
-    let mut wc = WordCounter::new();
+    let mut wc = WordAggregator::new();
 
     for pagenum in pagenums {
         let iv = fp.fetch_page(pagenum);
