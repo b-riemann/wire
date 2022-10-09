@@ -102,10 +102,6 @@ impl Segments {
 }
 
 // idea: glue links and macros together with gluespace as a first step (macrobyte+macrotype single+glued-arg), late analyse in detail when text-parsing is implemented.
-//const GLUESPACE : u8 = b'\x16';
-
-//TODO: make upcase part of the parsing process and not of the regex procedure
-//const UPCASE : u8 = b'\x07';
 
 pub struct PageRegexer {
     re: Regex,
@@ -129,8 +125,8 @@ impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            beg_wrd: Regex::new(r"(\n|;|\||\(|=|-)([A-Za-z])").unwrap(), //note: weird to include - on one side but could help
-            end_wrd: Regex::new(r"([A-Za-z])(,|\.|&|\||\)|=)").unwrap(),
+            beg_wrd: Regex::new(r"(\n|;|\||\(|=|-)([A-Za-z])").unwrap(),
+            end_wrd: Regex::new(r"([A-Za-z])(,|\.|&|\||\)|=|-)").unwrap(),
             openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
             clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap(),
         }

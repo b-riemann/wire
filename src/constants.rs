@@ -7,4 +7,5 @@
 // and preferably still be part of the ascii table (for easier utf8 output for conversion if required
 pub const MACRO_ESC : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
 pub const ANTISPACE : u8 = b'\x15';
+//pub const GLUESPACE : u8 = b'\x16';
 
