@@ -1,8 +1,9 @@
-mod lib;
-use lib::WordAggregator;
-use lib::FunPyre;
-use std::str;
+pub const MACRO_ESC : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
+pub const ANTISPACE : u8 = b'\x15';
 
+mod lib;
+mod aggregator;
+use std::str;
 use progress_bar::*;
 
 //fn scan_overview(fp: &FunPyre, first: usize) {
@@ -18,9 +19,9 @@ fn main() {
     let mode = "run";
 
     let first_n_pages = 1024;
-    let fp = FunPyre::new("../workfiles/enwik9".to_string(), first_n_pages+1);
+    let fp = lib::FunPyre::new("../workfiles/enwik9".to_string(), first_n_pages+1);
 
-    let mut wc = WordAggregator::new();
+    let mut wc = aggregator::WordAggregator::new();
 
     if mode == "run" {
         init_progress_bar(first_n_pages);
@@ -52,7 +53,7 @@ mod tests {
     #[test]
     fn canbe_pagerexed() {
         let n_pages = 5000;
-        let fp = FunPyre::new("../workfiles/enwik9".to_string(), n_pages);
+        let fp = lib::FunPyre::new("../workfiles/enwik9".to_string(), n_pages);
         let iv = fp.fetch_page(0);
         assert_eq!(fp.pagere.matches(&iv), false);
         for pagenum in 1..n_pages {
