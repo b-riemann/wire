@@ -6,6 +6,8 @@
 // these escape bytes should not be part of the input file
 // and preferably still be part of the ascii table (for easier utf8 output for conversion if required
 pub const MACRO_ESC : u8 = b'\x05'; // x05 is nice, as its the enquiry symbol in ascii
+
+#[allow(dead_code)] //this is required as compiler does not recognize that ANTISPACE is actually used.
 pub const ANTISPACE : u8 = b'\x15';
 //pub const GLUESPACE : u8 = b'\x16';
 

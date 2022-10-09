@@ -106,9 +106,7 @@ impl Segments {
 pub struct PageRegexer {
     re: Regex,
     beg_wrd: Regex,
-    end_wrd: Regex,
-    openduo: Regex,
-    clseduo: Regex,
+    end_wrd: Regex
 }
 
 //fn glue(inv: &[u8]) -> Vec<u8> {
@@ -125,10 +123,8 @@ impl PageRegexer {
     fn new() -> Self {
         PageRegexer {
             re: Regex::new(r#"^<page>\n    <title>(.*)</title>\n    <id>(\d*)</id>\n    ([\s\S]*)<revision>\n      <id>(\d*)</id>\n      <timestamp>20(\d\d)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)Z</timestamp>\n      <contributor>\n        ([\s\S]+)\n      </contributor>\n      ([\s\S]*)<text xml:space="preserve"(.*)>([\s\S]+)$"#).unwrap(),
-            beg_wrd: Regex::new(r"(\n|;|\||\(|=|-)([A-Za-z])").unwrap(),
-            end_wrd: Regex::new(r"([A-Za-z])(,|\.|&|\||\)|=|-)").unwrap(),
-            openduo: Regex::new(r"(\[\[|\{\{|'')(\w)").unwrap(),
-            clseduo: Regex::new(r"(\w)(\]\]|\}\}|'')").unwrap(),
+            beg_wrd: Regex::new(r"(\n|;|\||\(|=|-|\[|'|\{)([A-Za-z])").unwrap(),
+            end_wrd: Regex::new(r"([A-Za-z])(,|\.|&|\||\)|=|-|\]|'|\})").unwrap(),
         }
     }
 
@@ -137,17 +133,11 @@ impl PageRegexer {
     }
 
     fn rex_content(&self, inslice: &[u8]) -> Vec<u8> {
-        let a = self.beg_wrd.replace_all(inslice, |caps: &Captures| { 
+        let x = self.beg_wrd.replace_all(inslice, |caps: &Captures| { 
             [caps[1][0], ANTISPACE, b' ', caps[2][0]]
             }).into_owned();
-        let b = self.end_wrd.replace_all(&a, |caps: &Captures| { 
+        self.end_wrd.replace_all(&x, |caps: &Captures| { 
             [caps[1][0], b' ', ANTISPACE, caps[2][0]]
-            }).into_owned();
-        let c = self.openduo.replace_all(&b, |caps: &Captures| { 
-            [caps[1][0], caps[1][1], ANTISPACE, b' ', caps[2][0]]
-            }).into_owned();
-        self.clseduo.replace_all(&c, |caps: &Captures| { 
-            [caps[1][0], b' ', ANTISPACE, caps[2][0], caps[2][1]]
             }).into_owned()
     }
 
